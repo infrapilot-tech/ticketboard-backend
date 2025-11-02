@@ -1,0 +1,28 @@
+name: Build and Push Backend
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push to local registry
+        run: |
+          docker build -t host.docker.internal:5000/ticketboard-backend:latest .
+          docker push host.docker.internal:5000/ticketboard-backend:latest
+
+      - name: Verify image
+        run: |
+          docker pull host.docker.internal:5000/ticketboard-backend:latest
+          echo "✅ Backend image pushed successfully"
