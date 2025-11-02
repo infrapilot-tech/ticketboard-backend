@@ -6,9 +6,13 @@ on:
   workflow_dispatch:
 
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ vars.REGISTRY_URL }}/${{ vars.ORGANIZATION_NAME }}/ticketboard-backend
+
 jobs:
   build-and-push:
-    runs-on: self-hosted
+    runs-on: organization-runner # Usa el runner de la organización
 
     steps:
       - name: Checkout code
@@ -17,15 +21,38 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
-        run: |
-          docker build -t host.docker.internal:5000/ticketboard-backend:latest .
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.REGISTRY_URL }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push to local registry
-        run: |
-          docker push host.docker.internal:5000/ticketboard-backend:latest
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest
 
-      - name: Verify image
-        run: |
-          echo "✅ Backend image built and pushed successfully"
-          docker images | grep ticketboard-backend
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Trigger infrastructure deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: 'infrapilot-tech',
+              repo: 'ticketboard-infra',
+              workflow_id: 'deploy.yml',
+              ref: 'main'
+            })
