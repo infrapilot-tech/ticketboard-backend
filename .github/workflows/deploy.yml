@@ -43,6 +43,6 @@ jobs:
             github.rest.actions.createWorkflowDispatch({
               owner: 'infrapilot-tech',
               repo: 'ticketboard-infra',
-              workflow_id: 'deploy.yml',
+              workflow_id: 'deploy-platform.yml',
               ref: 'main'
             })
