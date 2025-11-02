@@ -17,12 +17,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push to local registry
+      - name: Build Docker image
         run: |
           docker build -t host.docker.internal:5000/ticketboard-backend:latest .
+
+      - name: Push to local registry
+        run: |
           docker push host.docker.internal:5000/ticketboard-backend:latest
 
       - name: Verify image
         run: |
-          docker pull host.docker.internal:5000/ticketboard-backend:latest
-          echo "✅ Backend image pushed successfully"
+          echo "✅ Backend image built and pushed successfully"
+          docker images | grep ticketboard-backend

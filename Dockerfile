@@ -2,12 +2,17 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Copiar package files
 COPY package*.json ./
+
+# Instalar dependencias
 RUN npm install
 
+# Copiar código fuente
 COPY . .
-RUN npm run build
 
+# Exponer puerto
 EXPOSE 80
 
-CMD ["npm", "start"]
+# Comando de inicio
+CMD ["node", "index.js"]

@@ -1,18 +1,14 @@
 {
   "name": "ticketboard-backend",
   "version": "1.0.0",
-  "description": "Simple backend API for TicketBoard demo project",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "echo \"No tests yet\" && exit 0"
+    "dev": "nodemon index.js"
   },
-  "keywords": [],
-  "author": "Gustavo Tejeda",
-  "license": "MIT",
   "dependencies": {
-    "body-parser": "^1.20.3",
-    "cors": "^2.8.5",
-    "express": "^4.21.1"
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
   }
 }
