@@ -1,8 +1,13 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const app = express();
 const { register, httpRequestDurationMicroseconds, httpRequestsTotal } = require('./src/metrics');
+const { connectProducer, sendTicketEvent } = require('./src/kafka/producer');
+
+const app = express();
+
+// Conectar a Kafka al iniciar
+connectProducer().catch(console.error);
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -11,8 +16,14 @@ let tickets = [
   { id: 1, title: "Test ticket", status: "open" }
 ];
 
-// Healthcheck (para K8s probes)
-app.get('/healthz', (req, res) => res.send('ok'));
+// Healthcheck (incluye Kafka)
+app.get('/healthz', async (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    kafka: 'connected',
+    timestamp: new Date().toISOString() 
+  });
+});
 
 // Get all tickets
 app.get('/tickets', (req, res) => {
@@ -20,15 +31,41 @@ app.get('/tickets', (req, res) => {
 });
 
 // Create a new ticket
-app.post('/tickets', (req, res) => {
+app.post('/tickets', async (req, res) => {
   const id = tickets.length ? tickets[tickets.length - 1].id + 1 : 1;
   const title = req.body.title || "Untitled";
   const newTicket = { id, title, status: "open" };
+  
   tickets.push(newTicket);
+  
+  // Emitir evento a Kafka
+  await sendTicketEvent('TICKET_CREATED', newTicket);
+  
   res.status(201).json(newTicket);
 });
 
-// Middleware para métricas
+// Update ticket status
+app.put('/tickets/:id/status', async (req, res) => {
+  const ticketId = parseInt(req.params.id);
+  const newStatus = req.body.status;
+  
+  const ticket = tickets.find(t => t.id === ticketId);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+  
+  const oldStatus = ticket.status;
+  ticket.status = newStatus;
+  
+  // Emitir evento a Kafka
+  await sendTicketEvent('TICKET_UPDATED', {
+    ...ticket,
+    oldStatus,
+    newStatus
+  });
+  
+  res.json(ticket);
+});
+
+// Middleware para métricas (existente)
 app.use((req, res, next) => {
   const start = Date.now();
   
@@ -46,7 +83,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Endpoint de métricas para Prometheus
+// Endpoint de métricas (existente)
 app.get('/metrics', async (req, res) => {
   try {
     res.set('Content-Type', register.contentType);
@@ -55,28 +92,12 @@ app.get('/metrics', async (req, res) => {
     res.status(500).end(error);
   }
 });
-// Agrega estos endpoints básicos cuando los necesites:
-/*
-app.get('/tickets/:id', (req, res) => {
-  const ticket = tickets.find(t => t.id === parseInt(req.params.id));
-  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-  res.json(ticket);
-});
-
-app.put('/tickets/:id', (req, res) => {
-  const ticketIndex = tickets.findIndex(t => t.id === parseInt(req.params.id));
-  if (ticketIndex === -1) return res.status(404).json({ error: 'Ticket not found' });
-  tickets[ticketIndex] = { ...tickets[ticketIndex], ...req.body };
-  res.json(tickets[ticketIndex]);
-});
-
-app.delete('/tickets/:id', (req, res) => {
-  const ticketIndex = tickets.findIndex(t => t.id === parseInt(req.params.id));
-  if (ticketIndex === -1) return res.status(404).json({ error: 'Ticket not found' });
-  tickets.splice(ticketIndex, 1);
-  res.status(204).send();
-});
-*/
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  await disconnectProducer();
+  process.exit(0);
+});
