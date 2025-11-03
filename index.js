@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const app = express();
+const { register, httpRequestDurationMicroseconds, httpRequestsTotal } = require('src/metrics');
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -27,6 +28,33 @@ app.post('/tickets', (req, res) => {
   res.status(201).json(newTicket);
 });
 
+// Middleware para métricas
+app.use((req, res, next) => {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000;
+    httpRequestDurationMicroseconds
+      .labels(req.method, req.route?.path || req.path, res.statusCode)
+      .observe(duration);
+    
+    httpRequestsTotal
+      .labels(req.method, req.route?.path || req.path, res.statusCode)
+      .inc();
+  });
+  
+  next();
+});
+
+// Endpoint de métricas para Prometheus
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (error) {
+    res.status(500).end(error);
+  }
+});
 // Agrega estos endpoints básicos cuando los necesites:
 /*
 app.get('/tickets/:id', (req, res) => {
