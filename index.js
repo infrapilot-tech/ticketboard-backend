@@ -2,7 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const app = express();
-const { register, httpRequestDurationMicroseconds, httpRequestsTotal } = require('src/metrics');
+const { register, httpRequestDurationMicroseconds, httpRequestsTotal } = require('./src/metrics');
 
 app.use(cors());
 app.use(bodyParser.json());
